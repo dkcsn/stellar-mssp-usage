@@ -24,6 +24,7 @@ Configuration (environment variables)
 Python 3.8+, standard library only.
 """
 import argparse
+import collections
 import csv
 import datetime as dt
 import glob
@@ -46,6 +47,7 @@ DISCOVER = "discover"          # Discover/sensor edition agent
 INACTIVE = "inactive"          # registered but holds no seat (over-seat / not activated)
 EXPIRED = "expired"            # license expired on the agent
 CLASSES = [BILLABLE, GRACE, DISCOVER, INACTIVE, EXPIRED]
+LICENSE_ALERT_DAYS = 60
 
 
 # --------------------------------------------------------------------------- API
@@ -201,16 +203,78 @@ def summarize(agents, resolve):
     return per_customer, rows
 
 
-def _date(epoch):
+def _date(value):
+    """Return an API epoch (seconds/milliseconds) or ISO value as YYYY-MM-DD."""
     try:
-        v = int(epoch)
+        v = int(value)
     except (TypeError, ValueError):
-        return ""
+        if not isinstance(value, str) or not value.strip():
+            return ""
+        try:
+            return dt.datetime.fromisoformat(value.strip().replace("Z", "+00:00")).date().isoformat()
+        except ValueError:
+            return ""
     if v <= 0:
         return ""
     if v > 10 ** 11:                         # milliseconds
         v //= 1000
     return dt.datetime.fromtimestamp(v, dt.timezone.utc).strftime("%Y-%m-%d")
+
+
+def console_license_expiry(agents):
+    """Infer the console license end date from agents' licenseExpiredAt values.
+
+    Prefer active, non-sensor, full-license agents. If none expose an expiry,
+    fall back to any non-sensor agent. The most commonly reported date wins,
+    because a console is expected to have one primary license end date.
+    """
+    protection = [a for a in agents if a.get("agentEdition") != "AGENT_EDITION_SENSOR"]
+    preferred = [a for a in protection
+                 if a.get("activated") is not False
+                 and a.get("licenseStatus") not in
+                 ("LICENSE_STATUS_EXPIRED", "LICENSE_STATUS_NOTACTIVATED")
+                 and a.get("licenseType") != "LICENSE_TYPE_TRIAL"]
+
+    def dates(items):
+        result = []
+        for agent in items:
+            value = _date(agent.get("licenseExpiredAt"))
+            if value:
+                result.append(value)
+        return result
+
+    values = dates(preferred) or dates(protection)
+    if not values:
+        return None
+    counts = collections.Counter(values)
+    selected = sorted(counts, key=lambda value: (-counts[value], value))[0]
+    return dt.date.fromisoformat(selected)
+
+
+def license_expiry_summary(agents, today=None):
+    """Return the report line and optional 60-day expiry alert."""
+    today = today or dt.date.today()
+    expiry = console_license_expiry(agents)
+    if not expiry:
+        return None, None
+    days = (expiry - today).days
+    unit = "day" if abs(days) == 1 else "days"
+    if days >= 0:
+        line = f"License expires {expiry.isoformat()} ({days} {unit})"
+    else:
+        line = f"License expired {expiry.isoformat()} ({abs(days)} {unit} ago)"
+
+    if days < 0:
+        alert = (f"LICENSE: expired {abs(days)} {unit} ago on {expiry.isoformat()} "
+                 "- renew immediately")
+    elif days == 0:
+        alert = f"LICENSE: expires today ({expiry.isoformat()}) - renew immediately"
+    elif days <= LICENSE_ALERT_DAYS:
+        alert = (f"LICENSE: expires in {days} {unit} on {expiry.isoformat()} "
+                 "- renew before expiry")
+    else:
+        alert = None
+    return line, alert
 
 
 def write_csv(path, rows, fields):
@@ -242,6 +306,9 @@ def cmd_snapshot(args):
 
     total_billable = sum(c[BILLABLE] + c[GRACE] for c in per_customer.values())
     summary, alerts = [], []
+    license_line, license_alert = license_expiry_summary(agents, dt.date.fromisoformat(today))
+    if license_alert:
+        alerts.append(license_alert)
     for cust in sorted(per_customer, key=lambda k: (k == UNGROUPED, k.lower())):
         c = per_customer[cust]
         billable = c[BILLABLE] + c[GRACE]
@@ -262,6 +329,8 @@ def cmd_snapshot(args):
     headers = ["Customer", "Billable", "of which grace", "Discover", "Inactive", "Expired",
                "Total", "Quota"]
     print(f"\nStellarOne usage per customer - {today}  ({os.environ.get('STELLARONE_URL')})\n")
+    if license_line:
+        print(license_line + "\n")
     print_table(headers, [[r["customer"], r["billable_seats"], r[GRACE], r[DISCOVER],
                            r[INACTIVE], r[EXPIRED], r["total_agents"], r["quota"]]
                           for r in summary])

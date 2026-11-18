@@ -272,13 +272,17 @@ The tool then:
 
 1. Maps every agent to its customer.
 2. Classifies each agent (section 7).
-3. Prints a table.
-4. Writes two CSV files and, with `--history-dir`, a snapshot copy.
+3. Derives the console license end date from the agents' `licenseExpiredAt`
+   values and raises an alert during the final 60 days.
+4. Prints a table.
+5. Writes two CSV files and, with `--history-dir`, a snapshot copy.
 
 Example console output:
 
 ```
 StellarOne usage per customer - 2026-11-18  (https://stellarone.mssp.example)
+
+License expires 2027-01-01 (44 days)
 
 Customer      Billable  of which grace  Discover  Inactive  Expired  Total  Quota
 ---------------------------------------------------------------------------------
@@ -290,6 +294,7 @@ Customer C    0         0               1         0         1        2
 Billable seats in use: 11 of 14 purchased (3 free, 79% used)
 
 Alerts:
+  ! LICENSE: expires in 44 days on 2027-01-01 - renew before expiry
   ! Customer A: 7 billable seats, quota 5 (+2)
   ! Customer B: 2 agent(s) without a seat - not protected
   ! Customer C: 1 agent(s) with an expired license
@@ -436,6 +441,8 @@ and unprotected.
 
 | Alert | Meaning | Action |
 |---|---|---|
+| `LICENSE: expires in N days on YYYY-MM-DD` | The primary console license expires within 60 days | Confirm the renewal and new license delivery with TXOne |
+| `LICENSE: expired N days ago on YYYY-MM-DD` | The primary console license date has passed | Renew immediately and verify agent protection status |
 | `<customer>: N billable seats, quota Q (+X)` | The customer is above its agreed maximum | Bill the overage, or agree a new quota |
 | `<customer>: N agent(s) without a seat - not protected` | Agents are Inactive | Free seats or buy more, **urgently** |
 | `<customer>: N agent(s) with an expired license` | The license has expired on these agents | Renew the license, or remove the agents |
@@ -527,6 +534,9 @@ appear in the `grace` column. Renew before grace runs out, or they move to `expi
 - **Logical, not physical, customer separation** in a shared console.
 - **Daily granularity.** Agents added and removed on the same day between two snapshots
   are not seen.
+- **The license end date is inferred from agent data.** The tool uses the most common
+  `licenseExpiredAt` value among active, full-license protection agents; it does not
+  read the console License page. Validate the displayed date against StellarOne.
 - **Agents outside customer groups are not billed.** Watch for `(ungrouped)` and
   `(above customer level)`.
 - **The tool only counts.** It does not create invoices, and it does not change
@@ -547,7 +557,8 @@ billing run, on your real console:
    - the agent count of two or three customer groups.
 3. Confirm that inactive (over-seat) agents appear in the `inactive` column.
 4. Confirm that Discover agents, if you have any, appear in the `discover` column.
-5. If anything differs, open `usage_by_agent_<date>.csv`, look at the `class` and
+5. Confirm that the `License expires` date matches the License page in StellarOne.
+6. If anything differs, open `usage_by_agent_<date>.csv`, look at the `class` and
    `license_status` columns of the agents concerned, and adjust the classification
    rules in `classify()` in the script if needed.
 
@@ -566,6 +577,8 @@ billing run, on your real console:
 | A customer appears as `(above customer level) ...` | The group depth does not match `--customer-level` | Fix the group structure, or change `--customer-level` |
 | `No snapshots for YYYY-MM` | `--history-dir` was not used, or points to another folder | Use the same `--history-dir` for both commands |
 | A low `average_seats` | Snapshot days are missing | Check `days_measured` and the scheduler |
+| No `License expires` line | No protection agent returned a usable `licenseExpiredAt` value | Check the per-agent CSV and verify the date manually on the License page |
+| The displayed license date is wrong | Agents returned inconsistent expiry dates, or only trial/stale data was available | Compare `license_expires` in the per-agent CSV with the License page before relying on the alert |
 | Slow runs or 429 responses | API rate limit | The tool retries automatically. Avoid running it more than once an hour. |
 
 When opening a TXOne support case for an API error, include the `request-id` the
