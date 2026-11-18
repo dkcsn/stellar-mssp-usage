@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Generated metering data may contain confidential customer asset details
+history/
+reports/
+quotas.csv
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/
