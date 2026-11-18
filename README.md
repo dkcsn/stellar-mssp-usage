@@ -5,6 +5,36 @@ TXOne Stellar OT endpoint protection to several end customers from one shared
 StellarOne console, and need to know, every month, how many license seats each
 customer used.
 
+## Important disclaimer
+
+> [!IMPORTANT]
+> **This is an independent, unofficial community project. It is not a TXOne
+> Networks product and has not been developed, reviewed, certified, approved,
+> endorsed or supported by TXOne Networks.** TXOne Networks and StellarOne are
+> trademarks or product names of their respective owner. Their use here is only
+> to identify the systems with which this project is intended to interoperate.
+
+This project is provided solely as an example and a source of inspiration. The
+script has only been tested against a simulated API, not a production
+StellarOne console. You must independently review, test and validate the code,
+API behaviour, classification rules, reports and commercial assumptions against
+your own environment, contracts and current TXOne documentation before using
+them for operations, monitoring, licensing or billing.
+
+Use of this project is entirely at your own risk. To the maximum extent
+permitted by applicable law, the author and contributors make no representations
+or warranties regarding its accuracy, completeness, reliability, security or
+fitness for a particular purpose, and accept no liability for errors, omissions,
+incorrect usage figures or invoices, license shortages, unprotected endpoints,
+service interruption, data loss or any other direct or indirect loss arising
+from its use or modification.
+
+You may copy, modify and redistribute the original code and documentation in
+this repository under the [MIT License](LICENSE). You are responsible for every
+copy or modified version you use or distribute, and must preserve the copyright
+and license notices. This permission does not grant rights to TXOne proprietary
+software, documentation, trademarks or other third-party material.
+
 - **Tool:** `stellar_mssp_usage.py`. Python 3.8+, standard library only, read-only.
 - **Applies to:** StellarOne with OpenAPI 2.1 (StellarOne 3.x / 5.x).
 - **Status:** the script has been tested against a simulated API only. Validate it
